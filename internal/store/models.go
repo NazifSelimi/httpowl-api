@@ -8,6 +8,16 @@ import (
 	"time"
 )
 
+type AgentToken struct {
+	ID        int64      `json:"id"`
+	SiteID    int64      `json:"site_id"`
+	TokenHash []byte     `json:"token_hash"`
+	Prefix    string     `json:"prefix"`
+	CreatedBy *int64     `json:"created_by"`
+	CreatedAt time.Time  `json:"created_at"`
+	RevokedAt *time.Time `json:"revoked_at"`
+}
+
 type AuditLog struct {
 	ID        int64     `json:"id"`
 	SiteID    *int64    `json:"site_id"`
@@ -26,6 +36,23 @@ type Session struct {
 	CreatedAt  time.Time `json:"created_at"`
 	LastSeenAt time.Time `json:"last_seen_at"`
 	ExpiresAt  time.Time `json:"expires_at"`
+}
+
+type Site struct {
+	ID              int64      `json:"id"`
+	Name            string     `json:"name"`
+	Domain          string     `json:"domain"`
+	CreatedAt       time.Time  `json:"created_at"`
+	AgentLastSeenAt *time.Time `json:"agent_last_seen_at"`
+	AgentInfo       []byte     `json:"agent_info"`
+	ProtectedIps    []string   `json:"protected_ips"`
+}
+
+type SiteMember struct {
+	SiteID    int64     `json:"site_id"`
+	UserID    int64     `json:"user_id"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type User struct {

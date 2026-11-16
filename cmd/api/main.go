@@ -21,6 +21,7 @@ import (
 	"github.com/NazifSelimi/httpowl-api/internal/auth"
 	"github.com/NazifSelimi/httpowl-api/internal/config"
 	"github.com/NazifSelimi/httpowl-api/internal/httpx"
+	"github.com/NazifSelimi/httpowl-api/internal/sites"
 	"github.com/NazifSelimi/httpowl-api/internal/store"
 	"github.com/NazifSelimi/httpowl-api/migrations"
 )
@@ -100,7 +101,9 @@ func (a *app) router() http.Handler {
 }
 
 // userRoutes is extended by later features.
-func (a *app) userRoutes(r chi.Router) {}
+func (a *app) userRoutes(r chi.Router) {
+	(&sites.Handler{Pool: a.pool, Q: a.q, PublicURL: a.cfg.PublicURL}).Routes(r)
+}
 
 func (a *app) startBackground(ctx context.Context) {
 	go every(ctx, time.Hour, func(ctx context.Context) {
