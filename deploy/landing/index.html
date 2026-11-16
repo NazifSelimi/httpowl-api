@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTTPowl — see and control your web traffic</title>
+<meta name="description" content="See every HTTP request to your website live, understand it in plain words, and block bad IPs, countries and bots in one click — with undo.">
+<style>
+  :root { --bg:#0b0d12; --fg:#e8eaf0; --muted:#9aa3b2; --accent:#a78bfa; --card:#141823; }
+  * { box-sizing:border-box; margin:0 }
+  body { background:var(--bg); color:var(--fg); font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  main { max-width:880px; margin:0 auto; padding:72px 16px; }
+  .logo { font-weight:800; font-size:22px; letter-spacing:-.02em } .logo span { color:var(--accent) }
+  h1 { font-size:clamp(32px,6vw,52px); line-height:1.1; letter-spacing:-.03em; margin:48px 0 16px }
+  p.lead { color:var(--muted); font-size:19px; max-width:640px }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin:48px 0 }
+  .card { background:var(--card); border-radius:14px; padding:20px }
+  .card b { display:block; margin-bottom:6px }
+  .card { color:var(--muted) } .card b { color:var(--fg) }
+  code { display:block; background:var(--card); padding:16px; border-radius:12px; color:var(--accent); overflow-x:auto; font-size:14px }
+  footer { color:var(--muted); font-size:13px; margin-top:64px }
+  footer a { color:var(--muted) }
+</style>
+</head>
+<body>
+<main>
+  <div class="logo">HTTP<span>owl</span></div>
+  <h1>See every visitor. Understand it. Block the bad ones.</h1>
+  <p class="lead">Live HTTP traffic for your websites, explained in plain words — and one-click blocks for bad IPs, countries and bots, always with undo. Works with nginx, Apache, Caddy, IIS, LiteSpeed and Traefik.</p>
+  <div class="grid">
+    <div class="card"><b>Live traffic</b>Every request as it happens: people, bots and attacks.</div>
+    <div class="card"><b>Plain words</b>“4 addresses looked for your secret .env file.” A daily note, not a log dump.</div>
+    <div class="card"><b>One-click blocks</b>IP, range, country or bot. Undo any time. Never locks you or SSH out.</div>
+    <div class="card"><b>Teams &amp; clients</b>Owner, Admin, Viewer and Client roles, with a full audit log.</div>
+  </div>
+  <p style="margin-bottom:10px">Install the agent on your server in one line:</p>
+  <code>curl -sL https://httpowl.net/install | sudo sh -s -- --token YOUR_TOKEN</code>
+  <footer>Coming soon. · Country data by <a href="https://db-ip.com">DB-IP</a> (CC BY 4.0)</footer>
+</main>
+</body>
+</html>

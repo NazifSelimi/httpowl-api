@@ -1,0 +1,26 @@
+[Unit]
+Description=HTTPowl API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+User=httpowl
+Group=httpowl
+EnvironmentFile=/var/www/httpowl/.env
+ExecStart=/var/www/httpowl/bin/httpowl-api
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+MemoryMax=500M
+
+[Install]
+WantedBy=multi-user.target
