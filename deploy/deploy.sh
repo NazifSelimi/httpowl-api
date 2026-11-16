@@ -5,7 +5,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 HOST=${HOST:-root@213.130.144.132}
-DIR=/var/www/httpowl
+# Target: production (default) or staging, e.g. `deploy/deploy.sh staging`.
+TARGET=${1:-production}
+case "$TARGET" in
+  production) DIR=/var/www/httpowl;         SERVICE=httpowl-api;         PORT=8090; URL=https://httpowl.net ;;
+  staging)    DIR=/var/www/httpowl-staging; SERVICE=httpowl-staging-api; PORT=8091; URL=https://staging.httpowl.net ;;
+  *) echo "usage: $0 [production|staging]"; exit 1 ;;
+esac
 VERSION=$(git describe --always --dirty)
 OUT=dist
 rm -rf "$OUT"; mkdir -p "$OUT/bin"
@@ -24,11 +30,11 @@ install -o root -g httpowl -m 0755 incoming/bin/httpowl-api bin/httpowl-api
 if [ ! -f landing/.keep-custom ]; then cp -R incoming/landing/. landing/; fi
 chmod -R a+rX landing
 rm -rf incoming
-systemctl restart httpowl-api
-for i in \$(seq 1 20); do curl -fs http://127.0.0.1:8090/api/health && echo && exit 0; sleep 1; done
+systemctl restart $SERVICE
+for i in \$(seq 1 20); do curl -fs http://127.0.0.1:$PORT/api/health && echo && exit 0; sleep 1; done
 echo "health check failed — rolling back"
-journalctl -u httpowl-api -n 30 --no-pager
-if [ -f bin/httpowl-api.prev ]; then cp -p bin/httpowl-api.prev bin/httpowl-api; systemctl restart httpowl-api; fi
+journalctl -u $SERVICE -n 30 --no-pager
+if [ -f bin/httpowl-api.prev ]; then cp -p bin/httpowl-api.prev bin/httpowl-api; systemctl restart $SERVICE; fi
 exit 1
 REMOTE
-echo "deployed $VERSION"
+echo "deployed $VERSION to $TARGET ($URL)"
