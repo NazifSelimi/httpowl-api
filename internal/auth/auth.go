@@ -171,9 +171,11 @@ func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// me returns the signed-in user plus the IP they connect from, so the UI can
+// mark "You" in traffic lists instead of offering to block yourself.
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 	u, _ := FromContext(r.Context())
-	httpx.JSON(w, http.StatusOK, u)
+	httpx.JSON(w, http.StatusOK, map[string]any{"id": u.ID, "email": u.Email, "name": u.Name, "ip": httpx.ClientIP(r)})
 }
 
 func (h *Handler) startSession(w http.ResponseWriter, r *http.Request, userID int64) error {

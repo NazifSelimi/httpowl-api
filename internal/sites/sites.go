@@ -118,6 +118,7 @@ type siteView struct {
 	AgentOnline     bool            `json:"agent_online"`
 	AgentInfo       json.RawMessage `json:"agent_info,omitempty"`
 	TokenPrefix     string          `json:"token_prefix,omitempty"`
+	ProtectedIPs    []string        `json:"protected_ips,omitempty"` // server IPs + live SSH peers: never blockable
 	InstallCommand  string          `json:"install_hint,omitempty"`
 }
 
@@ -127,6 +128,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	v.AgentOnline = s.AgentLastSeenAt != nil && time.Since(*s.AgentLastSeenAt) < 2*time.Minute
 	if AtLeast(s.Role, RoleAdmin) {
 		v.AgentInfo = s.AgentInfo
+		v.ProtectedIPs = s.ProtectedIps
 		if t, err := h.Q.ActiveTokenPrefix(r.Context(), s.ID); err == nil {
 			v.TokenPrefix = t.Prefix
 		}
