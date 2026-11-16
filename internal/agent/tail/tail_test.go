@@ -52,3 +52,17 @@ func TestSkipRotated(t *testing.T) {
 		t.Error("live log skipped")
 	}
 }
+
+func TestStateFileNullAndEarlySave(t *testing.T) {
+	dir := t.TempDir()
+	state := filepath.Join(dir, "offsets.json")
+	tl := &Tailer{StatePath: state}
+	tl.Save() // before Run: must not write "null"
+	if _, err := os.Stat(state); err == nil {
+		t.Fatal("Save before Run wrote a state file")
+	}
+	os.WriteFile(state, []byte("null"), 0o600)
+	if m := tl.load(); m == nil {
+		t.Fatal("null state file gave a nil map")
+	}
+}

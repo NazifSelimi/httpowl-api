@@ -74,7 +74,10 @@ func skipName(n string) bool {
 
 // Run polls files every second until ctx ends.
 func (t *Tailer) Run(ctx context.Context) {
-	t.state = t.load()
+	loaded := t.load()
+	t.mu.Lock()
+	t.state = loaded
+	t.mu.Unlock()
 	first := true
 	readers := map[string]*follower{}
 	tick := time.NewTicker(time.Second)
@@ -129,6 +132,10 @@ func (t *Tailer) Save() {
 		return
 	}
 	t.mu.Lock()
+	if t.state == nil { // Run has not started yet: nothing to save
+		t.mu.Unlock()
+		return
+	}
 	b, _ := json.Marshal(t.state)
 	t.mu.Unlock()
 	tmp := t.StatePath + ".tmp"
@@ -143,6 +150,9 @@ func (t *Tailer) load() map[string]fileState {
 		if b, err := os.ReadFile(t.StatePath); err == nil {
 			_ = json.Unmarshal(b, &m)
 		}
+	}
+	if m == nil { // a file containing "null"
+		m = map[string]fileState{}
 	}
 	return m
 }
