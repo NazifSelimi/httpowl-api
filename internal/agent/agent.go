@@ -60,6 +60,7 @@ type Agent struct {
 	lastError string
 	fw        firewall
 	botWatch  *botWatcher
+	rs        ruleState
 }
 
 func New(cfg Config, version string) (*Agent, error) {
@@ -102,6 +103,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	go t.Run(ctx)
 	go a.loop(ctx, time.Minute, a.heartbeat)
 	go a.loop(ctx, 30*time.Second, a.syncRules)
+	go a.loop(ctx, 5*time.Second, a.botLoop)
 	go a.loop(ctx, 10*time.Second, func(context.Context) error { t.Save(); return nil })
 	a.ship(ctx, lines)
 	return nil
@@ -186,7 +188,7 @@ func (a *Agent) heartbeat(ctx context.Context) error {
 	hb := wire.Heartbeat{
 		Version: a.Version, Hostname: host, OS: runtime.GOOS, Arch: runtime.GOARCH,
 		Servers: a.Servers(), LogPaths: a.LogFiles(), Firewall: a.fw.Name(),
-		ServerIPs: sys.ServerIPs(), SSHPeers: sys.SSHPeers(), RulesApplied: a.fw.Applied(), LastError: lastErr,
+		ServerIPs: sys.ServerIPs(), SSHPeers: sys.SSHPeers(), RulesApplied: a.appliedCount(), LastError: lastErr,
 	}
 	return a.post(ctx, "/api/agent/heartbeat", hb, nil)
 }
@@ -210,6 +212,16 @@ func (a *Agent) get(ctx context.Context, path string, out any) error {
 }
 
 func (a *Agent) do(req *http.Request, out any) error {
+	return a.doRaw(req, func(resp *http.Response) error {
+		if out != nil {
+			return decodeJSON(resp, out)
+		}
+		return nil
+	})
+}
+
+// doRaw sends an authenticated request; 2xx and 304 go to fn.
+func (a *Agent) doRaw(req *http.Request, fn func(*http.Response) error) error {
 	req.Header.Set("Authorization", "Bearer "+a.Cfg.Token)
 	req.Header.Set("User-Agent", "httpowl-agent/"+a.Version)
 	resp, err := a.client.Do(req)
@@ -217,12 +229,19 @@ func (a *Agent) do(req *http.Request, out any) error {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode >= 300 && resp.StatusCode != http.StatusNotModified {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
 		return fmt.Errorf("%s %s: %d %s", req.Method, req.URL.Path, resp.StatusCode, strings.TrimSpace(string(b)))
 	}
-	if out != nil {
-		return json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(out)
-	}
-	return nil
+	return fn(resp)
+}
+
+func decodeJSON(resp *http.Response, out any) error {
+	return json.NewDecoder(io.LimitReader(resp.Body, 64<<20)).Decode(out)
+}
+
+func (a *Agent) appliedCount() int64 {
+	a.rs.mu.Lock()
+	defer a.rs.mu.Unlock()
+	return a.rs.applied
 }

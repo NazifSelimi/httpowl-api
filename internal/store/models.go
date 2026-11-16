@@ -48,6 +48,19 @@ type Request struct {
 	Reason     string     `json:"reason"`
 }
 
+type Rule struct {
+	ID        int64      `json:"id"`
+	SiteID    int64      `json:"site_id"`
+	Kind      string     `json:"kind"`
+	Value     string     `json:"value"`
+	Note      string     `json:"note"`
+	CreatedBy *int64     `json:"created_by"`
+	CreatedAt time.Time  `json:"created_at"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	RemovedBy *int64     `json:"removed_by"`
+	RemovedAt *time.Time `json:"removed_at"`
+}
+
 type Session struct {
 	TokenHash  []byte    `json:"token_hash"`
 	UserID     int64     `json:"user_id"`

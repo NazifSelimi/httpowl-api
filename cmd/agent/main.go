@@ -26,6 +26,7 @@ func main() {
 	token := flag.String("token", "", "agent token (overrides config)")
 	server := flag.String("server", "", "HTTPowl server URL (overrides config)")
 	detectOnly := flag.Bool("detect", false, "show detected web servers and log files, then exit")
+	cleanup := flag.Bool("cleanup", false, "remove every firewall block HTTPowl added, then exit")
 	showVersion := flag.Bool("version", false, "print version")
 	var logs multi
 	flag.Var(&logs, "log", "access log path or glob (repeatable; overrides auto-detect)")
@@ -52,15 +53,22 @@ func main() {
 	if len(logs) > 0 {
 		cfg.Logs = logs
 	}
-	if cfg.Token == "" && *detectOnly {
+	if cfg.Token == "" && (*detectOnly || *cleanup) {
 		cfg.Token = "owl_detect"
 	}
 	a, err := agent.New(cfg, version)
 	if err != nil {
 		fail(err)
 	}
+	if *cleanup {
+		if err := a.Cleanup(); err != nil {
+			fail(err)
+		}
+		fmt.Println("HTTPowl firewall blocks removed")
+		return
+	}
 	if *detectOnly {
-		out, _ := json.MarshalIndent(map[string]any{"servers": a.Servers(), "log_files": a.LogFiles()}, "", "  ")
+		out, _ := json.MarshalIndent(map[string]any{"servers": a.Servers(), "log_files": a.LogFiles(), "firewall": a.FirewallName()}, "", "  ")
 		fmt.Println(string(out))
 		return
 	}
