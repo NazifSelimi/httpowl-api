@@ -151,7 +151,7 @@ func (h *Handler) heartbeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Server IPs + live SSH peers must never be blocked.
-	var protected []string
+	protected := []string{} // never nil: the column is NOT NULL
 	seen := map[string]bool{}
 	for _, s := range append(append([]string{}, hb.ServerIPs...), hb.SSHPeers...) {
 		if a, err := netip.ParseAddr(s); err == nil && !seen[a.String()] && len(protected) < 200 {
