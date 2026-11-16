@@ -24,6 +24,7 @@ import (
 	"github.com/NazifSelimi/httpowl-api/internal/geo"
 	"github.com/NazifSelimi/httpowl-api/internal/httpx"
 	"github.com/NazifSelimi/httpowl-api/internal/ingest"
+	"github.com/NazifSelimi/httpowl-api/internal/notes"
 	"github.com/NazifSelimi/httpowl-api/internal/rules"
 	"github.com/NazifSelimi/httpowl-api/internal/sites"
 	"github.com/NazifSelimi/httpowl-api/internal/store"
@@ -64,6 +65,7 @@ func run() error {
 	a.geo = geo.Open(cfg.GeoIPPath)
 	a.hub = ws.New(cfg.PublicURL)
 	a.rules = &rules.Handler{Q: q, Geo: a.geo}
+	a.notes = &notes.Handler{Q: q}
 	a.ingest = &ingest.Handler{Q: q, Enrich: a.enrich, Publish: a.publish}
 	if err := ingest.MaintainPartitions(ctx, pool); err != nil {
 		return err
@@ -100,6 +102,7 @@ type app struct {
 	geo      *geo.DB
 	hub      *ws.Hub
 	rules    *rules.Handler
+	notes    *notes.Handler
 }
 
 func (a *app) publish(siteID int64, rows []ingest.Row) {
@@ -150,6 +153,7 @@ func (a *app) userRoutes(r chi.Router) {
 	sh.Sub = append(sh.Sub,
 		(&analyse.StatsHandler{Q: a.q}).Routes,
 		a.rules.SiteRoutes,
+		a.notes.Routes,
 		func(r chi.Router) { r.With(sites.Load(a.q, sites.RoleViewer)).Get("/live", a.hub.Serve) },
 	)
 	sh.Routes(r)
@@ -161,6 +165,7 @@ func (a *app) startBackground(ctx context.Context) {
 			slog.Error("partitions", "err", err)
 		}
 	})
+	go every(ctx, 15*time.Minute, a.notes.WriteYesterday)
 	go every(ctx, time.Minute, func(ctx context.Context) {
 		if err := a.q.ExpireRules(ctx); err != nil {
 			slog.Error("expire rules", "err", err)

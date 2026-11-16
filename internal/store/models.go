@@ -29,6 +29,14 @@ type AuditLog struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type DailyNote struct {
+	SiteID    int64     `json:"site_id"`
+	Day       time.Time `json:"day"`
+	Body      string    `json:"body"`
+	Stats     []byte    `json:"stats"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type Request struct {
 	SiteID     int64      `json:"site_id"`
 	Ts         time.Time  `json:"ts"`
