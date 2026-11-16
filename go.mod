@@ -3,8 +3,10 @@ module github.com/NazifSelimi/httpowl-api
 go 1.27.3
 
 require (
+	github.com/coder/websocket v1.8.15
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/jackc/pgx/v5 v5.13.0
+	github.com/oschwald/maxminddb-golang/v2 v2.9.1
 	github.com/pressly/goose/v3 v3.30.1
 	golang.org/x/crypto v0.59.0
 )

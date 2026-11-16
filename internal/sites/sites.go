@@ -25,6 +25,8 @@ type Handler struct {
 	Pool      *pgxpool.Pool
 	Q         *store.Queries
 	PublicURL string
+	// Sub mounts more routes under /sites/{siteID} (stats, rules, team...).
+	Sub []func(r chi.Router)
 }
 
 // Routes mounts /sites... on an authenticated router.
@@ -36,6 +38,9 @@ func (h *Handler) Routes(r chi.Router) {
 		r.With(Load(h.Q, RoleAdmin)).Patch("/", h.update)
 		r.With(Load(h.Q, RoleOwner)).Delete("/", h.delete)
 		r.With(Load(h.Q, RoleAdmin)).Post("/agent-token", h.newToken)
+		for _, f := range h.Sub {
+			f(r)
+		}
 	})
 }
 

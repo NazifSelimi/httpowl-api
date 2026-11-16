@@ -21,10 +21,12 @@ import (
 	"github.com/NazifSelimi/httpowl-api/internal/analyse"
 	"github.com/NazifSelimi/httpowl-api/internal/auth"
 	"github.com/NazifSelimi/httpowl-api/internal/config"
+	"github.com/NazifSelimi/httpowl-api/internal/geo"
 	"github.com/NazifSelimi/httpowl-api/internal/httpx"
 	"github.com/NazifSelimi/httpowl-api/internal/ingest"
 	"github.com/NazifSelimi/httpowl-api/internal/sites"
 	"github.com/NazifSelimi/httpowl-api/internal/store"
+	"github.com/NazifSelimi/httpowl-api/internal/ws"
 	"github.com/NazifSelimi/httpowl-api/migrations"
 )
 
@@ -58,7 +60,9 @@ func run() error {
 
 	a := &app{cfg: cfg, pool: pool, q: q, auth: auth.New(q, cfg.CookieSecure)}
 	a.analyser = analyse.New()
-	a.ingest = &ingest.Handler{Q: q, Enrich: a.enrich}
+	a.geo = geo.Open(cfg.GeoIPPath)
+	a.hub = ws.New(cfg.PublicURL)
+	a.ingest = &ingest.Handler{Q: q, Enrich: a.enrich, Publish: a.publish}
 	if err := ingest.MaintainPartitions(ctx, pool); err != nil {
 		return err
 	}
@@ -91,12 +95,27 @@ type app struct {
 	ingest *ingest.Handler
 
 	analyser *analyse.Analyzer
+	geo      *geo.DB
+	hub      *ws.Hub
+}
+
+func (a *app) publish(siteID int64, rows []ingest.Row) {
+	if a.hub.Watchers(siteID) == 0 {
+		return
+	}
+	evs := make([]ws.Event, len(rows))
+	for i, r := range rows {
+		evs[i] = ws.Event{TS: r.Ts, IP: r.Ip.String(), Country: r.Country, Method: r.Method, Path: r.Path,
+			Status: int(r.Status), Duration: r.DurationMs, UA: r.Ua, Tag: r.Tag, Reason: r.Reason}
+	}
+	a.hub.Publish(siteID, evs)
 }
 
 // enrich tags each stored request (and adds its country once GeoIP is set up).
 func (a *app) enrich(rows []ingest.Row) {
 	for i := range rows {
 		r := &rows[i]
+		r.Country = a.geo.Country(r.Ip)
 		r.Tag, r.Reason = a.analyser.Classify(analyse.Input{
 			SiteID: r.SiteID, TS: r.Ts, IP: r.Ip, Method: r.Method, Path: r.Path, Query: r.Query, Status: int(r.Status), UA: r.Ua,
 		})
@@ -123,7 +142,12 @@ func (a *app) router() http.Handler {
 
 // userRoutes is extended by later features.
 func (a *app) userRoutes(r chi.Router) {
-	(&sites.Handler{Pool: a.pool, Q: a.q, PublicURL: a.cfg.PublicURL}).Routes(r)
+	sh := &sites.Handler{Pool: a.pool, Q: a.q, PublicURL: a.cfg.PublicURL}
+	sh.Sub = append(sh.Sub,
+		(&analyse.StatsHandler{Q: a.q}).Routes,
+		func(r chi.Router) { r.With(sites.Load(a.q, sites.RoleViewer)).Get("/live", a.hub.Serve) },
+	)
+	sh.Routes(r)
 }
 
 func (a *app) startBackground(ctx context.Context) {
