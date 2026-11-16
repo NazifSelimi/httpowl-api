@@ -1,0 +1,7 @@
+/httpowl-ui/
+/bin/
+/dist/
+.env
+*.local
+.DS_Store
+/data/
