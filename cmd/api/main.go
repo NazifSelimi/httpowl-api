@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 
+	"github.com/NazifSelimi/httpowl-api/internal/analyse"
 	"github.com/NazifSelimi/httpowl-api/internal/auth"
 	"github.com/NazifSelimi/httpowl-api/internal/config"
 	"github.com/NazifSelimi/httpowl-api/internal/httpx"
@@ -56,7 +57,8 @@ func run() error {
 	q := store.New(pool)
 
 	a := &app{cfg: cfg, pool: pool, q: q, auth: auth.New(q, cfg.CookieSecure)}
-	a.ingest = &ingest.Handler{Q: q}
+	a.analyser = analyse.New()
+	a.ingest = &ingest.Handler{Q: q, Enrich: a.enrich}
 	if err := ingest.MaintainPartitions(ctx, pool); err != nil {
 		return err
 	}
@@ -87,6 +89,18 @@ type app struct {
 	q      *store.Queries
 	auth   *auth.Handler
 	ingest *ingest.Handler
+
+	analyser *analyse.Analyzer
+}
+
+// enrich tags each stored request (and adds its country once GeoIP is set up).
+func (a *app) enrich(rows []ingest.Row) {
+	for i := range rows {
+		r := &rows[i]
+		r.Tag, r.Reason = a.analyser.Classify(analyse.Input{
+			SiteID: r.SiteID, TS: r.Ts, IP: r.Ip, Method: r.Method, Path: r.Path, Query: r.Query, Status: int(r.Status), UA: r.Ua,
+		})
+	}
 }
 
 func (a *app) router() http.Handler {
