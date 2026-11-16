@@ -28,6 +28,7 @@ import (
 	"github.com/NazifSelimi/httpowl-api/internal/rules"
 	"github.com/NazifSelimi/httpowl-api/internal/sites"
 	"github.com/NazifSelimi/httpowl-api/internal/store"
+	"github.com/NazifSelimi/httpowl-api/internal/team"
 	"github.com/NazifSelimi/httpowl-api/internal/ws"
 	"github.com/NazifSelimi/httpowl-api/migrations"
 )
@@ -66,6 +67,8 @@ func run() error {
 	a.hub = ws.New(cfg.PublicURL)
 	a.rules = &rules.Handler{Q: q, Geo: a.geo}
 	a.notes = &notes.Handler{Q: q}
+	a.team = &team.Handler{Q: q}
+	a.auth.OnSignup = a.team.AcceptInvites
 	a.ingest = &ingest.Handler{Q: q, Enrich: a.enrich, Publish: a.publish}
 	if err := ingest.MaintainPartitions(ctx, pool); err != nil {
 		return err
@@ -103,6 +106,7 @@ type app struct {
 	hub      *ws.Hub
 	rules    *rules.Handler
 	notes    *notes.Handler
+	team     *team.Handler
 }
 
 func (a *app) publish(siteID int64, rows []ingest.Row) {
@@ -154,9 +158,11 @@ func (a *app) userRoutes(r chi.Router) {
 		(&analyse.StatsHandler{Q: a.q}).Routes,
 		a.rules.SiteRoutes,
 		a.notes.Routes,
+		a.team.Routes,
 		func(r chi.Router) { r.With(sites.Load(a.q, sites.RoleViewer)).Get("/live", a.hub.Serve) },
 	)
 	sh.Routes(r)
+	a.team.UserRoutes(r)
 }
 
 func (a *app) startBackground(ctx context.Context) {

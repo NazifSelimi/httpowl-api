@@ -127,3 +127,12 @@ func (l *Limiter) Allow(key string) bool {
 	h.n++
 	return h.n <= l.max
 }
+
+// IDParamQuery parses a query-string value as a positive int64.
+func IDParamQuery(r *http.Request, name string) (int64, error) {
+	id, err := strconv.ParseInt(r.URL.Query().Get(name), 10, 64)
+	if err != nil || id <= 0 {
+		return 0, errors.New("bad id")
+	}
+	return id, nil
+}

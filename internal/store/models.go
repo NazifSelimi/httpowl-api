@@ -5,6 +5,7 @@
 package store
 
 import (
+	"encoding/json"
 	"net/netip"
 	"time"
 )
@@ -20,21 +21,21 @@ type AgentToken struct {
 }
 
 type AuditLog struct {
-	ID        int64     `json:"id"`
-	SiteID    *int64    `json:"site_id"`
-	UserID    *int64    `json:"user_id"`
-	Action    string    `json:"action"`
-	Detail    []byte    `json:"detail"`
-	Ip        string    `json:"ip"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int64           `json:"id"`
+	SiteID    *int64          `json:"site_id"`
+	UserID    *int64          `json:"user_id"`
+	Action    string          `json:"action"`
+	Detail    json.RawMessage `json:"detail"`
+	Ip        string          `json:"ip"`
+	CreatedAt time.Time       `json:"created_at"`
 }
 
 type DailyNote struct {
-	SiteID    int64     `json:"site_id"`
-	Day       time.Time `json:"day"`
-	Body      string    `json:"body"`
-	Stats     []byte    `json:"stats"`
-	CreatedAt time.Time `json:"created_at"`
+	SiteID    int64           `json:"site_id"`
+	Day       time.Time       `json:"day"`
+	Body      string          `json:"body"`
+	Stats     json.RawMessage `json:"stats"`
+	CreatedAt time.Time       `json:"created_at"`
 }
 
 type Request struct {
@@ -80,13 +81,21 @@ type Session struct {
 }
 
 type Site struct {
-	ID              int64      `json:"id"`
-	Name            string     `json:"name"`
-	Domain          string     `json:"domain"`
-	CreatedAt       time.Time  `json:"created_at"`
-	AgentLastSeenAt *time.Time `json:"agent_last_seen_at"`
-	AgentInfo       []byte     `json:"agent_info"`
-	ProtectedIps    []string   `json:"protected_ips"`
+	ID              int64           `json:"id"`
+	Name            string          `json:"name"`
+	Domain          string          `json:"domain"`
+	CreatedAt       time.Time       `json:"created_at"`
+	AgentLastSeenAt *time.Time      `json:"agent_last_seen_at"`
+	AgentInfo       json.RawMessage `json:"agent_info"`
+	ProtectedIps    []string        `json:"protected_ips"`
+}
+
+type SiteInvite struct {
+	SiteID    int64     `json:"site_id"`
+	Email     string    `json:"email"`
+	Role      string    `json:"role"`
+	InvitedBy *int64    `json:"invited_by"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type SiteMember struct {

@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -55,10 +56,10 @@ WHERE site_id = $1 ORDER BY day DESC LIMIT 30
 `
 
 type ListNotesRow struct {
-	Day       time.Time `json:"day"`
-	Body      string    `json:"body"`
-	Stats     []byte    `json:"stats"`
-	CreatedAt time.Time `json:"created_at"`
+	Day       time.Time       `json:"day"`
+	Body      string          `json:"body"`
+	Stats     json.RawMessage `json:"stats"`
+	CreatedAt time.Time       `json:"created_at"`
 }
 
 func (q *Queries) ListNotes(ctx context.Context, siteID int64) ([]ListNotesRow, error) {
@@ -105,11 +106,12 @@ func (q *Queries) NewRulesBetween(ctx context.Context, arg NewRulesBetweenParams
 
 const sitesMissingNote = `-- name: SitesMissingNote :many
 SELECT s.id FROM sites s
-WHERE NOT EXISTS (SELECT 1 FROM daily_notes n WHERE n.site_id = s.id AND n.day = $1)
+WHERE s.created_at < ($1::date + 1)::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM daily_notes n WHERE n.site_id = s.id AND n.day = $1)
 `
 
-func (q *Queries) SitesMissingNote(ctx context.Context, day time.Time) ([]int64, error) {
-	rows, err := q.db.Query(ctx, sitesMissingNote, day)
+func (q *Queries) SitesMissingNote(ctx context.Context, dollar_1 time.Time) ([]int64, error) {
+	rows, err := q.db.Query(ctx, sitesMissingNote, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -174,10 +176,10 @@ ON CONFLICT (site_id, day) DO UPDATE SET body = EXCLUDED.body, stats = EXCLUDED.
 `
 
 type UpsertNoteParams struct {
-	SiteID int64     `json:"site_id"`
-	Day    time.Time `json:"day"`
-	Body   string    `json:"body"`
-	Stats  []byte    `json:"stats"`
+	SiteID int64           `json:"site_id"`
+	Day    time.Time       `json:"day"`
+	Body   string          `json:"body"`
+	Stats  json.RawMessage `json:"stats"`
 }
 
 func (q *Queries) UpsertNote(ctx context.Context, arg UpsertNoteParams) error {

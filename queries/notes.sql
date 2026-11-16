@@ -8,7 +8,8 @@ WHERE site_id = $1 ORDER BY day DESC LIMIT 30;
 
 -- name: SitesMissingNote :many
 SELECT s.id FROM sites s
-WHERE NOT EXISTS (SELECT 1 FROM daily_notes n WHERE n.site_id = s.id AND n.day = $1);
+WHERE s.created_at < ($1::date + 1)::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM daily_notes n WHERE n.site_id = s.id AND n.day = $1);
 
 -- name: NewRulesBetween :one
 SELECT count(*) FROM rules WHERE site_id = $1 AND created_at >= $2 AND created_at < $3;

@@ -27,7 +27,11 @@ func Compose(d Data) string {
 	if t.Requests == 0 {
 		return "No visits were recorded on " + d.Day + ". If that's unexpected, check that the HTTPowl agent is running on your server."
 	}
-	fmt.Fprintf(&b, "On %s your site got %s requests from %s different addresses", d.Day, num(t.Requests), num(t.UniqueIps))
+	when := "On " + d.Day
+	if d.Day == "today" {
+		when = "So far today"
+	}
+	fmt.Fprintf(&b, "%s your site got %s requests from %s different addresses", when, num(t.Requests), num(t.UniqueIps))
 	if d.Prev.Requests > 0 {
 		ch := float64(t.Requests-d.Prev.Requests) / float64(d.Prev.Requests) * 100
 		switch {
@@ -58,7 +62,7 @@ func Compose(d Data) string {
 	var attacks []string
 	for _, r := range d.Reasons {
 		if r.Tag == "attack" && len(attacks) < 3 {
-			attacks = append(attacks, fmt.Sprintf("%s %s (%s times)", plural(r.Ips, "address", "addresses"), r.Reason, num(r.Requests)))
+			attacks = append(attacks, fmt.Sprintf("%s %s (%s)", plural(r.Ips, "address", "addresses"), r.Reason, plural(r.Requests, "time", "times")))
 		}
 	}
 	if len(attacks) > 0 {

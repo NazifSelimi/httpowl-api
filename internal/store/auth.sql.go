@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -141,11 +142,11 @@ VALUES ($1, $2, $3, $4, $5)
 `
 
 type InsertAuditParams struct {
-	SiteID *int64 `json:"site_id"`
-	UserID *int64 `json:"user_id"`
-	Action string `json:"action"`
-	Detail []byte `json:"detail"`
-	Ip     string `json:"ip"`
+	SiteID *int64          `json:"site_id"`
+	UserID *int64          `json:"user_id"`
+	Action string          `json:"action"`
+	Detail json.RawMessage `json:"detail"`
+	Ip     string          `json:"ip"`
 }
 
 func (q *Queries) InsertAudit(ctx context.Context, arg InsertAuditParams) error {

@@ -21,3 +21,5 @@ sql:
             go_type: net/netip.Addr
           - db_type: date
             go_type: time.Time
+          - db_type: jsonb
+            go_type: encoding/json.RawMessage

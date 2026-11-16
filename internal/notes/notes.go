@@ -53,7 +53,7 @@ func (h *Handler) today(w http.ResponseWriter, r *http.Request) {
 		httpx.Internal(w, r, err)
 		return
 	}
-	d.Day = "today (so far)"
+	d.Day = "today"
 	httpx.JSON(w, http.StatusOK, map[string]any{"day": day.Format("2006-01-02"), "body": Compose(d), "stats": d})
 }
 

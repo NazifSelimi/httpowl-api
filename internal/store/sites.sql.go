@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -48,9 +49,9 @@ UPDATE sites SET agent_last_seen_at = now(), agent_info = $2, protected_ips = $3
 `
 
 type AgentHeartbeatParams struct {
-	ID           int64    `json:"id"`
-	AgentInfo    []byte   `json:"agent_info"`
-	ProtectedIps []string `json:"protected_ips"`
+	ID           int64           `json:"id"`
+	AgentInfo    json.RawMessage `json:"agent_info"`
+	ProtectedIps []string        `json:"protected_ips"`
 }
 
 func (q *Queries) AgentHeartbeat(ctx context.Context, arg AgentHeartbeatParams) error {
@@ -143,14 +144,14 @@ type GetSiteForUserParams struct {
 }
 
 type GetSiteForUserRow struct {
-	ID              int64      `json:"id"`
-	Name            string     `json:"name"`
-	Domain          string     `json:"domain"`
-	CreatedAt       time.Time  `json:"created_at"`
-	AgentLastSeenAt *time.Time `json:"agent_last_seen_at"`
-	AgentInfo       []byte     `json:"agent_info"`
-	ProtectedIps    []string   `json:"protected_ips"`
-	Role            string     `json:"role"`
+	ID              int64           `json:"id"`
+	Name            string          `json:"name"`
+	Domain          string          `json:"domain"`
+	CreatedAt       time.Time       `json:"created_at"`
+	AgentLastSeenAt *time.Time      `json:"agent_last_seen_at"`
+	AgentInfo       json.RawMessage `json:"agent_info"`
+	ProtectedIps    []string        `json:"protected_ips"`
+	Role            string          `json:"role"`
 }
 
 func (q *Queries) GetSiteForUser(ctx context.Context, arg GetSiteForUserParams) (GetSiteForUserRow, error) {
