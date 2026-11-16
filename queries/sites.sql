@@ -43,3 +43,17 @@ WHERE t.token_hash = $1 AND t.revoked_at IS NULL;
 
 -- name: AgentHeartbeat :exec
 UPDATE sites SET agent_last_seen_at = now(), agent_info = $2, protected_ips = $3 WHERE id = $1;
+
+-- name: RouteCandidates :many
+-- Sites a visit may be routed to: every site that shares an owner with the agent's site.
+SELECT DISTINCT s.id, s.domain FROM sites s
+JOIN site_members m ON m.site_id = s.id AND m.role = 'owner'
+WHERE m.user_id IN (SELECT o.user_id FROM site_members o WHERE o.site_id = @agent_site_id AND o.role = 'owner');
+
+-- name: MarkServedBy :exec
+UPDATE sites SET served_by = @agent_site_id
+WHERE id = ANY(@site_ids::bigint[]) AND id <> @agent_site_id AND served_by IS DISTINCT FROM @agent_site_id;
+
+-- name: AgentHeartbeatServed :exec
+-- Sites served by this agent share its status and protected IPs (same server).
+UPDATE sites SET agent_last_seen_at = now(), agent_info = $2, protected_ips = $3 WHERE served_by = $1;

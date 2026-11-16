@@ -34,3 +34,16 @@ UPDATE rules SET removed_at = now() WHERE removed_at IS NULL AND expires_at IS N
 SELECT DISTINCT s.ip FROM sessions s
 JOIN site_members m ON m.user_id = s.user_id
 WHERE m.site_id = $1 AND s.last_seen_at > now() - interval '30 days' AND s.ip <> '';
+
+-- name: ActiveRulesForAgent :many
+-- Active rules of the agent's site and every site it serves: one firewall per server.
+SELECT * FROM rules
+WHERE site_id IN (SELECT st.id FROM sites st WHERE st.id = $1 OR st.served_by = $1)
+  AND removed_at IS NULL AND (expires_at IS NULL OR expires_at > now())
+ORDER BY id;
+
+-- name: MemberSessionIPsForAgent :many
+SELECT DISTINCT s.ip FROM sessions s
+JOIN site_members m ON m.user_id = s.user_id
+WHERE m.site_id IN (SELECT st.id FROM sites st WHERE st.id = $1 OR st.served_by = $1)
+  AND s.last_seen_at > now() - interval '30 days' AND s.ip <> '';

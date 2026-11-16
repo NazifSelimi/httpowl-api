@@ -47,6 +47,45 @@ func (q *Queries) ActiveRules(ctx context.Context, siteID int64) ([]Rule, error)
 	return items, nil
 }
 
+const activeRulesForAgent = `-- name: ActiveRulesForAgent :many
+SELECT id, site_id, kind, value, note, created_by, created_at, expires_at, removed_by, removed_at FROM rules
+WHERE site_id IN (SELECT st.id FROM sites st WHERE st.id = $1 OR st.served_by = $1)
+  AND removed_at IS NULL AND (expires_at IS NULL OR expires_at > now())
+ORDER BY id
+`
+
+// Active rules of the agent's site and every site it serves: one firewall per server.
+func (q *Queries) ActiveRulesForAgent(ctx context.Context, id int64) ([]Rule, error) {
+	rows, err := q.db.Query(ctx, activeRulesForAgent, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Rule
+	for rows.Next() {
+		var i Rule
+		if err := rows.Scan(
+			&i.ID,
+			&i.SiteID,
+			&i.Kind,
+			&i.Value,
+			&i.Note,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.RemovedBy,
+			&i.RemovedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countActiveRules = `-- name: CountActiveRules :one
 SELECT count(*) FROM rules WHERE site_id = $1 AND removed_at IS NULL
 `
@@ -200,6 +239,33 @@ WHERE m.site_id = $1 AND s.last_seen_at > now() - interval '30 days' AND s.ip <>
 // IPs the site's team logged in from recently: never blockable.
 func (q *Queries) MemberSessionIPs(ctx context.Context, siteID int64) ([]string, error) {
 	rows, err := q.db.Query(ctx, memberSessionIPs, siteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var ip string
+		if err := rows.Scan(&ip); err != nil {
+			return nil, err
+		}
+		items = append(items, ip)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const memberSessionIPsForAgent = `-- name: MemberSessionIPsForAgent :many
+SELECT DISTINCT s.ip FROM sessions s
+JOIN site_members m ON m.user_id = s.user_id
+WHERE m.site_id IN (SELECT st.id FROM sites st WHERE st.id = $1 OR st.served_by = $1)
+  AND s.last_seen_at > now() - interval '30 days' AND s.ip <> ''
+`
+
+func (q *Queries) MemberSessionIPsForAgent(ctx context.Context, id int64) ([]string, error) {
+	rows, err := q.db.Query(ctx, memberSessionIPsForAgent, id)
 	if err != nil {
 		return nil, err
 	}

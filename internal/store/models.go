@@ -88,6 +88,7 @@ type Site struct {
 	AgentLastSeenAt *time.Time      `json:"agent_last_seen_at"`
 	AgentInfo       json.RawMessage `json:"agent_info"`
 	ProtectedIps    []string        `json:"protected_ips"`
+	ServedBy        *int64          `json:"served_by"`
 }
 
 type SiteInvite struct {

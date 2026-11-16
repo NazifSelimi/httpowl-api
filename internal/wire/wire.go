@@ -38,6 +38,9 @@ type Heartbeat struct {
 	SSHPeers     []string `json:"ssh_peers"` // IPs with an open SSH session right now
 	RulesApplied int64    `json:"rules_applied"`
 	LastError    string   `json:"last_error,omitempty"`
+	// False when recent log lines had no domain, so every visit lands on one site.
+	// Fix: `sudo httpowl-agent setup-logs`. Nil until lines were read.
+	LogsHaveDomain *bool `json:"logs_have_domain,omitempty"`
 }
 
 // Rules is the body of GET /api/agent/rules: the full desired block state.

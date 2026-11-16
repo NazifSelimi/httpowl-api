@@ -77,6 +77,11 @@ func (h *Handler) ingest(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, http.StatusRequestEntityTooLarge, "max 5000 requests per batch")
 		return
 	}
+	router, err := h.router(r, site.ID)
+	if err != nil {
+		httpx.Internal(w, r, err)
+		return
+	}
 	rows := make([]Row, 0, len(b.Requests))
 	skipped := 0
 	for _, q := range b.Requests {
@@ -86,7 +91,7 @@ func (h *Handler) ingest(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		rows = append(rows, Row{
-			SiteID: site.ID, Ts: q.TS.UTC(), Ip: ip.Unmap(), Method: clip(q.Method, 16), Host: clip(q.Host, 253),
+			SiteID: router.SiteFor(q.Host), Ts: q.TS.UTC(), Ip: ip.Unmap(), Method: clip(q.Method, 16), Host: clip(q.Host, 253),
 			Path: clip(q.Path, 1000), Query: clip(q.Query, 500), Proto: clip(q.Proto, 16), Status: int16(q.Status),
 			Bytes: max(q.Bytes, 0), DurationMs: float32(max(q.DurationMS, 0)), Ua: clip(q.UA, 500), Referer: clip(q.Referer, 500),
 			Tag: "human",
@@ -100,11 +105,37 @@ func (h *Handler) ingest(w http.ResponseWriter, r *http.Request) {
 			httpx.Internal(w, r, err)
 			return
 		}
-		if h.Publish != nil {
-			h.Publish(site.ID, rows)
+		bySite := map[int64][]Row{}
+		for _, row := range rows {
+			bySite[row.SiteID] = append(bySite[row.SiteID], row)
+		}
+		served := make([]int64, 0, len(bySite))
+		for id, siteRows := range bySite {
+			served = append(served, id)
+			if h.Publish != nil {
+				h.Publish(id, siteRows)
+			}
+		}
+		if len(served) > 1 || served[0] != site.ID {
+			if err := h.Q.MarkServedBy(r.Context(), store.MarkServedByParams{AgentSiteID: &site.ID, SiteIds: served}); err != nil {
+				slog.Error("mark served_by", "site", site.ID, "err", err)
+			}
 		}
 	}
 	httpx.JSON(w, http.StatusOK, map[string]int{"stored": len(rows), "skipped": skipped})
+}
+
+// router builds the domain → site map for this agent's owner(s).
+func (h *Handler) router(r *http.Request, agentSiteID int64) (*Router, error) {
+	rows, err := h.Q.RouteCandidates(r.Context(), agentSiteID)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]Candidate, len(rows))
+	for i, c := range rows {
+		candidates[i] = Candidate{ID: c.ID, Domain: c.Domain}
+	}
+	return NewRouter(agentSiteID, candidates), nil
 }
 
 func (h *Handler) heartbeat(w http.ResponseWriter, r *http.Request) {
@@ -131,6 +162,10 @@ func (h *Handler) heartbeat(w http.ResponseWriter, r *http.Request) {
 	hb.LastError = clip(hb.LastError, 500)
 	info, _ := json.Marshal(hb)
 	if err := h.Q.AgentHeartbeat(r.Context(), store.AgentHeartbeatParams{ID: site.ID, AgentInfo: info, ProtectedIps: protected}); err != nil {
+		httpx.Internal(w, r, err)
+		return
+	}
+	if err := h.Q.AgentHeartbeatServed(r.Context(), store.AgentHeartbeatServedParams{ServedBy: &site.ID, AgentInfo: info, ProtectedIps: protected}); err != nil {
 		httpx.Internal(w, r, err)
 		return
 	}

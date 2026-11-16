@@ -59,6 +59,22 @@ func (q *Queries) AgentHeartbeat(ctx context.Context, arg AgentHeartbeatParams) 
 	return err
 }
 
+const agentHeartbeatServed = `-- name: AgentHeartbeatServed :exec
+UPDATE sites SET agent_last_seen_at = now(), agent_info = $2, protected_ips = $3 WHERE served_by = $1
+`
+
+type AgentHeartbeatServedParams struct {
+	ServedBy     *int64          `json:"served_by"`
+	AgentInfo    json.RawMessage `json:"agent_info"`
+	ProtectedIps []string        `json:"protected_ips"`
+}
+
+// Sites served by this agent share its status and protected IPs (same server).
+func (q *Queries) AgentHeartbeatServed(ctx context.Context, arg AgentHeartbeatServedParams) error {
+	_, err := q.db.Exec(ctx, agentHeartbeatServed, arg.ServedBy, arg.AgentInfo, arg.ProtectedIps)
+	return err
+}
+
 const createAgentToken = `-- name: CreateAgentToken :exec
 INSERT INTO agent_tokens (site_id, token_hash, prefix, created_by) VALUES ($1, $2, $3, $4)
 `
@@ -81,7 +97,7 @@ func (q *Queries) CreateAgentToken(ctx context.Context, arg CreateAgentTokenPara
 }
 
 const createSite = `-- name: CreateSite :one
-INSERT INTO sites (name, domain) VALUES ($1, $2) RETURNING id, name, domain, created_at, agent_last_seen_at, agent_info, protected_ips
+INSERT INTO sites (name, domain) VALUES ($1, $2) RETURNING id, name, domain, created_at, agent_last_seen_at, agent_info, protected_ips, served_by
 `
 
 type CreateSiteParams struct {
@@ -100,6 +116,7 @@ func (q *Queries) CreateSite(ctx context.Context, arg CreateSiteParams) (Site, e
 		&i.AgentLastSeenAt,
 		&i.AgentInfo,
 		&i.ProtectedIps,
+		&i.ServedBy,
 	)
 	return i, err
 }
@@ -114,7 +131,7 @@ func (q *Queries) DeleteSite(ctx context.Context, id int64) error {
 }
 
 const getSite = `-- name: GetSite :one
-SELECT id, name, domain, created_at, agent_last_seen_at, agent_info, protected_ips FROM sites WHERE id = $1
+SELECT id, name, domain, created_at, agent_last_seen_at, agent_info, protected_ips, served_by FROM sites WHERE id = $1
 `
 
 func (q *Queries) GetSite(ctx context.Context, id int64) (Site, error) {
@@ -128,12 +145,13 @@ func (q *Queries) GetSite(ctx context.Context, id int64) (Site, error) {
 		&i.AgentLastSeenAt,
 		&i.AgentInfo,
 		&i.ProtectedIps,
+		&i.ServedBy,
 	)
 	return i, err
 }
 
 const getSiteForUser = `-- name: GetSiteForUser :one
-SELECT s.id, s.name, s.domain, s.created_at, s.agent_last_seen_at, s.agent_info, s.protected_ips, m.role
+SELECT s.id, s.name, s.domain, s.created_at, s.agent_last_seen_at, s.agent_info, s.protected_ips, s.served_by, m.role
 FROM sites s JOIN site_members m ON m.site_id = s.id
 WHERE s.id = $1 AND m.user_id = $2
 `
@@ -151,6 +169,7 @@ type GetSiteForUserRow struct {
 	AgentLastSeenAt *time.Time      `json:"agent_last_seen_at"`
 	AgentInfo       json.RawMessage `json:"agent_info"`
 	ProtectedIps    []string        `json:"protected_ips"`
+	ServedBy        *int64          `json:"served_by"`
 	Role            string          `json:"role"`
 }
 
@@ -165,6 +184,7 @@ func (q *Queries) GetSiteForUser(ctx context.Context, arg GetSiteForUserParams) 
 		&i.AgentLastSeenAt,
 		&i.AgentInfo,
 		&i.ProtectedIps,
+		&i.ServedBy,
 		&i.Role,
 	)
 	return i, err
@@ -236,6 +256,21 @@ func (q *Queries) ListSitesForUser(ctx context.Context, userID int64) ([]ListSit
 	return items, nil
 }
 
+const markServedBy = `-- name: MarkServedBy :exec
+UPDATE sites SET served_by = $1
+WHERE id = ANY($2::bigint[]) AND id <> $1 AND served_by IS DISTINCT FROM $1
+`
+
+type MarkServedByParams struct {
+	AgentSiteID *int64  `json:"agent_site_id"`
+	SiteIds     []int64 `json:"site_ids"`
+}
+
+func (q *Queries) MarkServedBy(ctx context.Context, arg MarkServedByParams) error {
+	_, err := q.db.Exec(ctx, markServedBy, arg.AgentSiteID, arg.SiteIds)
+	return err
+}
+
 const revokeAgentTokens = `-- name: RevokeAgentTokens :exec
 UPDATE agent_tokens SET revoked_at = now() WHERE site_id = $1 AND revoked_at IS NULL
 `
@@ -243,6 +278,38 @@ UPDATE agent_tokens SET revoked_at = now() WHERE site_id = $1 AND revoked_at IS 
 func (q *Queries) RevokeAgentTokens(ctx context.Context, siteID int64) error {
 	_, err := q.db.Exec(ctx, revokeAgentTokens, siteID)
 	return err
+}
+
+const routeCandidates = `-- name: RouteCandidates :many
+SELECT DISTINCT s.id, s.domain FROM sites s
+JOIN site_members m ON m.site_id = s.id AND m.role = 'owner'
+WHERE m.user_id IN (SELECT o.user_id FROM site_members o WHERE o.site_id = $1 AND o.role = 'owner')
+`
+
+type RouteCandidatesRow struct {
+	ID     int64  `json:"id"`
+	Domain string `json:"domain"`
+}
+
+// Sites a visit may be routed to: every site that shares an owner with the agent's site.
+func (q *Queries) RouteCandidates(ctx context.Context, agentSiteID int64) ([]RouteCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, routeCandidates, agentSiteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RouteCandidatesRow
+	for rows.Next() {
+		var i RouteCandidatesRow
+		if err := rows.Scan(&i.ID, &i.Domain); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const siteByAgentToken = `-- name: SiteByAgentToken :one

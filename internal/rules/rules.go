@@ -218,7 +218,7 @@ func (h *Handler) restore(w http.ResponseWriter, r *http.Request) {
 // agentRules returns the full desired state. ETag lets the agent skip unchanged lists.
 func (h *Handler) agentRules(w http.ResponseWriter, r *http.Request) {
 	site := sites.AgentFromContext(r)
-	active, err := h.Q.ActiveRules(r.Context(), site.ID)
+	active, err := h.Q.ActiveRulesForAgent(r.Context(), site.ID)
 	if err != nil {
 		httpx.Internal(w, r, err)
 		return
@@ -237,7 +237,7 @@ func (h *Handler) agentRules(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	out.AllowIPs = append(out.AllowIPs, site.ProtectedIPs...)
-	if ips, err := h.Q.MemberSessionIPs(r.Context(), site.ID); err == nil {
+	if ips, err := h.Q.MemberSessionIPsForAgent(r.Context(), site.ID); err == nil {
 		out.AllowIPs = append(out.AllowIPs, ips...)
 	}
 	b, _ := json.Marshal(out)
