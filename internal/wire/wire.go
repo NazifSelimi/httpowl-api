@@ -1,4 +1,5 @@
 // Package wire holds the JSON shapes shared by the API and the agent.
+// Keep identical to httpowl-agent/internal/wire (separate repository).
 package wire
 
 import "time"

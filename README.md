@@ -1,20 +1,19 @@
-# HTTPowl API + agent
+# HTTPowl API
 
 Live HTTP traffic for websites, explained in plain words, with one-click reversible blocks.
-Go (chi, pgx + sqlc, goose, slog, coder/websocket) + PostgreSQL. Frontend lives in the separate `httpowl-ui` repo. API reference: [API.md](API.md).
+Go (chi, pgx + sqlc, goose, slog, coder/websocket) + PostgreSQL. Frontend: `httpowl-ui` repo. Agent: `httpowl-agent` repo. API reference: [API.md](API.md).
 
 ```
 cmd/api      web API (serves /api on 127.0.0.1:8090)
-cmd/agent    httpowl-agent: reads access logs, ships them, applies blocks
-internal/    auth sites ingest analyse rules notes team audit ws geo agent/…
+internal/    auth sites ingest analyse rules notes team audit ws geo wire
 migrations/  goose SQL (embedded, run on API start)
 queries/     sqlc queries → internal/store (run `sqlc generate` after editing)
-deploy/      deploy.sh, systemd unit, nginx site, install.sh / install.ps1, landing page
+deploy/      deploy.sh, systemd unit, nginx site
 ```
 
 ## Develop (Mac)
 ```
-go test ./...                      # unit tests (parsers, tagging, safety rules, firewall, tail)
+go test ./...                      # unit tests (tagging, safety rules, sites, notes, team)
 sqlc generate                      # after changing migrations/ or queries/
 ```
 No local database: run the API against the VPS test DB through an SSH tunnel
@@ -24,7 +23,7 @@ No local database: run the API against the VPS test DB through an SSH tunnel
 ```
 git push && deploy/deploy.sh
 ```
-Builds the API + agents (linux amd64/arm64, windows amd64) on the Mac, uploads to `/var/www/httpowl`, restarts `httpowl-api`,
+Builds the API on the Mac, uploads to `/var/www/httpowl`, restarts `httpowl-api`,
 checks `/api/health` and rolls back to `bin/httpowl-api.prev` if it fails. Migrations run automatically on start.
 
 ## Server layout (VPS)
