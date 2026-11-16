@@ -5,6 +5,7 @@
 package store
 
 import (
+	"net/netip"
 	"time"
 )
 
@@ -26,6 +27,25 @@ type AuditLog struct {
 	Detail    []byte    `json:"detail"`
 	Ip        string    `json:"ip"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type Request struct {
+	SiteID     int64      `json:"site_id"`
+	Ts         time.Time  `json:"ts"`
+	Ip         netip.Addr `json:"ip"`
+	Method     string     `json:"method"`
+	Host       string     `json:"host"`
+	Path       string     `json:"path"`
+	Query      string     `json:"query"`
+	Proto      string     `json:"proto"`
+	Status     int16      `json:"status"`
+	Bytes      int64      `json:"bytes"`
+	DurationMs float32    `json:"duration_ms"`
+	Ua         string     `json:"ua"`
+	Referer    string     `json:"referer"`
+	Country    string     `json:"country"`
+	Tag        string     `json:"tag"`
+	Reason     string     `json:"reason"`
 }
 
 type Session struct {

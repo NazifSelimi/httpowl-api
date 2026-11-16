@@ -21,6 +21,7 @@ import (
 	"github.com/NazifSelimi/httpowl-api/internal/auth"
 	"github.com/NazifSelimi/httpowl-api/internal/config"
 	"github.com/NazifSelimi/httpowl-api/internal/httpx"
+	"github.com/NazifSelimi/httpowl-api/internal/ingest"
 	"github.com/NazifSelimi/httpowl-api/internal/sites"
 	"github.com/NazifSelimi/httpowl-api/internal/store"
 	"github.com/NazifSelimi/httpowl-api/migrations"
@@ -55,6 +56,10 @@ func run() error {
 	q := store.New(pool)
 
 	a := &app{cfg: cfg, pool: pool, q: q, auth: auth.New(q, cfg.CookieSecure)}
+	a.ingest = &ingest.Handler{Q: q}
+	if err := ingest.MaintainPartitions(ctx, pool); err != nil {
+		return err
+	}
 	a.startBackground(ctx)
 
 	srv := &http.Server{
@@ -77,10 +82,11 @@ func run() error {
 }
 
 type app struct {
-	cfg  config.Config
-	pool *pgxpool.Pool
-	q    *store.Queries
-	auth *auth.Handler
+	cfg    config.Config
+	pool   *pgxpool.Pool
+	q      *store.Queries
+	auth   *auth.Handler
+	ingest *ingest.Handler
 }
 
 func (a *app) router() http.Handler {
@@ -92,6 +98,7 @@ func (a *app) router() http.Handler {
 			httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok", "version": version})
 		})
 		a.auth.Routes(r)
+		a.ingest.Routes(r)
 		r.Group(func(r chi.Router) {
 			r.Use(a.auth.Require)
 			a.userRoutes(r)
@@ -106,6 +113,11 @@ func (a *app) userRoutes(r chi.Router) {
 }
 
 func (a *app) startBackground(ctx context.Context) {
+	go every(ctx, time.Hour, func(ctx context.Context) {
+		if err := ingest.MaintainPartitions(ctx, a.pool); err != nil {
+			slog.Error("partitions", "err", err)
+		}
+	})
 	go every(ctx, time.Hour, func(ctx context.Context) {
 		if err := a.q.DeleteExpiredSessions(ctx); err != nil {
 			slog.Error("session cleanup", "err", err)
