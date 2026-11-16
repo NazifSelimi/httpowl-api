@@ -163,7 +163,7 @@ func (a *Agent) ship(ctx context.Context, lines <-chan tail.Line) {
 				parsers[l.File] = p
 			}
 			r, err := p.Parse(l.Text)
-			if err != nil {
+			if err != nil || IsOwnTraffic(r) {
 				continue
 			}
 			a.botWatch.see(r)
@@ -244,4 +244,10 @@ func (a *Agent) appliedCount() int64 {
 	a.rs.mu.Lock()
 	defer a.rs.mu.Unlock()
 	return a.rs.applied
+}
+
+// IsOwnTraffic is the agent's own calls to HTTPowl (when the agent runs on the
+// HTTPowl server itself); shipping them would loop forever.
+func IsOwnTraffic(r wire.Request) bool {
+	return strings.HasPrefix(r.UA, "httpowl-agent/")
 }

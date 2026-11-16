@@ -19,7 +19,7 @@ cp deploy/install.sh deploy/install.ps1 "$OUT/dl/"
 (cd "$OUT/dl" && shasum -a 256 httpowl-agent-* > SHA256SUMS)
 cp -R deploy/landing "$OUT/landing"
 echo "uploading"
-COPYFILE_DISABLE=1 tar czf - -C "$OUT" . | ssh "$HOST" "rm -rf $DIR/incoming && mkdir -p $DIR/incoming && tar xzf - -C $DIR/incoming"
+COPYFILE_DISABLE=1 tar --no-xattrs -czf - -C "$OUT" . | ssh "$HOST" "rm -rf $DIR/incoming && mkdir -p $DIR/incoming && tar xzf - -C $DIR/incoming"
 ssh "$HOST" bash -s <<REMOTE
 set -euo pipefail
 cd $DIR

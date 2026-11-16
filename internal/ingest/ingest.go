@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/netip"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -80,7 +81,7 @@ func (h *Handler) ingest(w http.ResponseWriter, r *http.Request) {
 	skipped := 0
 	for _, q := range b.Requests {
 		ip, err := netip.ParseAddr(q.IP)
-		if err != nil || !InWindow(q.TS) || q.Status < 100 || q.Status > 999 {
+		if err != nil || !InWindow(q.TS) || q.Status < 100 || q.Status > 999 || strings.HasPrefix(q.UA, "httpowl-agent/") {
 			skipped++
 			continue
 		}
