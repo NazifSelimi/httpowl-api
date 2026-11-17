@@ -44,6 +44,9 @@ type Heartbeat struct {
 	// How per-website blocks are enforced: "nginx" when set up, "" when not
 	// (fix: `sudo httpowl-agent setup-blocks`); those blocks then do nothing.
 	SiteBlocks string `json:"site_blocks,omitempty"`
+	// Why per-website blocks are not working right now (nginx rejected the
+	// list, reload failed, setup missing), even when SiteBlocks is "nginx".
+	SiteBlocksError string `json:"site_blocks_error,omitempty"`
 }
 
 // Rules is the body of GET /api/agent/rules: the full desired block state.

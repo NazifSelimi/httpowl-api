@@ -159,7 +159,7 @@ func (h *Handler) heartbeat(w http.ResponseWriter, r *http.Request) {
 			protected = append(protected, a.String())
 		}
 	}
-	hb.LastError = clip(hb.LastError, 500)
+	cleanHeartbeat(&hb)
 	info, _ := json.Marshal(hb)
 	if err := h.Q.AgentHeartbeat(r.Context(), store.AgentHeartbeatParams{ID: site.ID, AgentInfo: info, ProtectedIps: protected}); err != nil {
 		httpx.Internal(w, r, err)
@@ -171,6 +171,12 @@ func (h *Handler) heartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Debug("heartbeat", "site", site.ID, "host", hb.Hostname)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// cleanHeartbeat caps the free-text fields the agent sends (shown on the dashboard).
+func cleanHeartbeat(hb *wire.Heartbeat) {
+	hb.LastError = clip(hb.LastError, 500)
+	hb.SiteBlocksError = clip(hb.SiteBlocksError, 500)
 }
 
 func clip(s string, n int) string {
