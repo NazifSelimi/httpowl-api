@@ -112,7 +112,7 @@ func (h *Handler) check(w http.ResponseWriter, r *http.Request) {
 		httpx.JSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
 		return
 	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "value": v, "explain": Explain(in.Kind, v)})
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "value": v, "explain": Explain(in.Kind, v) + ScopeNote(s)})
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +155,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	audit.Log(r.Context(), h.Q, &s.ID, &u.ID, "rule.create", map[string]any{"rule_id": rule.ID, "kind": rule.Kind, "value": rule.Value, "note": note}, httpx.ClientIP(r))
-	httpx.JSON(w, http.StatusCreated, map[string]any{"rule": rule, "explain": Explain(rule.Kind, rule.Value), "undo": fmt.Sprintf("DELETE /api/sites/%d/rules/%d", s.ID, rule.ID)})
+	httpx.JSON(w, http.StatusCreated, map[string]any{"rule": rule, "explain": Explain(rule.Kind, rule.Value) + ScopeNote(s), "undo": fmt.Sprintf("DELETE /api/sites/%d/rules/%d", s.ID, rule.ID)})
 }
 
 func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
@@ -216,6 +216,8 @@ func (h *Handler) restore(w http.ResponseWriter, r *http.Request) {
 }
 
 // agentRules returns the full desired state. ETag lets the agent skip unchanged lists.
+// Rules of the agent's own site block the whole server (firewall); rules of the
+// sites it serves block only that website (enforced by the web server).
 func (h *Handler) agentRules(w http.ResponseWriter, r *http.Request) {
 	site := sites.AgentFromContext(r)
 	active, err := h.Q.ActiveRulesForAgent(r.Context(), site.ID)
@@ -223,17 +225,36 @@ func (h *Handler) agentRules(w http.ResponseWriter, r *http.Request) {
 		httpx.Internal(w, r, err)
 		return
 	}
+	served, err := h.Q.ServedSites(r.Context(), &site.ID)
+	if err != nil {
+		httpx.Internal(w, r, err)
+		return
+	}
 	out := wire.Rules{BlockCIDRs: []string{}, BotPatterns: []string{}, AllowIPs: []string{}}
+	bySite := map[int64]*wire.SiteRules{}
+	for _, s := range served {
+		sr := wire.SiteRules{Domains: HostNames(s.Domain), BlockCIDRs: []string{}, BotPatterns: []string{}}
+		out.Sites = append(out.Sites, sr)
+	}
+	for i, s := range served {
+		bySite[s.ID] = &out.Sites[i]
+	}
 	for _, rl := range active {
+		cidrs, bots := &out.BlockCIDRs, &out.BotPatterns
+		if sr, ok := bySite[rl.SiteID]; ok {
+			cidrs, bots = &sr.BlockCIDRs, &sr.BotPatterns
+		} else if rl.SiteID != site.ID {
+			continue // served_by changed between the two queries
+		}
 		switch rl.Kind {
 		case KindIP, KindCIDR:
-			out.BlockCIDRs = append(out.BlockCIDRs, rl.Value)
+			*cidrs = append(*cidrs, rl.Value)
 		case KindCountry:
 			if h.Geo != nil {
-				out.BlockCIDRs = append(out.BlockCIDRs, h.Geo.CountryCIDRs(rl.Value)...)
+				*cidrs = append(*cidrs, h.Geo.CountryCIDRs(rl.Value)...)
 			}
 		case KindBot:
-			out.BotPatterns = append(out.BotPatterns, rl.Value)
+			*bots = append(*bots, rl.Value)
 		}
 	}
 	out.AllowIPs = append(out.AllowIPs, site.ProtectedIPs...)
@@ -250,6 +271,21 @@ func (h *Handler) agentRules(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(b)
+}
+
+// HostNames are the exact host names a site's blocks cover: the domain and its www twin.
+func HostNames(domain string) []string {
+	d := strings.ToLower(strings.TrimSuffix(domain, "."))
+	d = strings.TrimPrefix(d, "www.")
+	return []string{d, "www." + d}
+}
+
+// ScopeNote says which websites a block on this site reaches.
+func ScopeNote(s sites.Site) string {
+	if s.ServedBy != nil {
+		return " Only " + s.Domain + " is affected; your other websites on the same server stay open."
+	}
+	return " This blocks them on the whole server, so every website on it."
 }
 
 // Explain says in plain words what a rule does.

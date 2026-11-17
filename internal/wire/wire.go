@@ -41,6 +41,9 @@ type Heartbeat struct {
 	// False when recent log lines had no domain, so every visit lands on one site.
 	// Fix: `sudo httpowl-agent setup-logs`. Nil until lines were read.
 	LogsHaveDomain *bool `json:"logs_have_domain,omitempty"`
+	// How per-website blocks are enforced: "nginx" when set up, "" when not
+	// (fix: `sudo httpowl-agent setup-blocks`); those blocks then do nothing.
+	SiteBlocks string `json:"site_blocks,omitempty"`
 }
 
 // Rules is the body of GET /api/agent/rules: the full desired block state.
@@ -49,4 +52,15 @@ type Rules struct {
 	BlockCIDRs  []string `json:"block_cidrs"`  // IPs as /32 or /128 too
 	BotPatterns []string `json:"bot_patterns"` // lower-case UA substrings; agent blocks matching IPs for 24h
 	AllowIPs    []string `json:"allow_ips"`    // never blocked (protected IPs)
+	// Blocks for one website only (other websites on the same server stay
+	// reachable). Enforced in the web server, never in the firewall.
+	Sites []SiteRules `json:"sites,omitempty"`
+}
+
+// SiteRules are the blocks of one website served by this agent.
+// BlockCIDRs and BotPatterns above are for the whole server (firewall).
+type SiteRules struct {
+	Domains     []string `json:"domains"` // exact host names, e.g. example.com and www.example.com
+	BlockCIDRs  []string `json:"block_cidrs"`
+	BotPatterns []string `json:"bot_patterns"`
 }

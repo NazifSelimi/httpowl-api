@@ -120,12 +120,25 @@ type siteView struct {
 	TokenPrefix     string          `json:"token_prefix,omitempty"`
 	ProtectedIPs    []string        `json:"protected_ips,omitempty"` // server IPs + live SSH peers: never blockable
 	InstallCommand  string          `json:"install_hint,omitempty"`
+	// Where this site's blocks apply: "site" = only this domain (another site's
+	// agent serves it, blocks run in the web server); "server" = the whole
+	// server (firewall), which includes every domain in Serves.
+	BlockScope string   `json:"block_scope"`
+	Serves     []string `json:"serves,omitempty"`
 }
 
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	s := FromContext(r.Context())
 	v := siteView{ID: s.ID, Name: s.Name, Domain: s.Domain, Role: s.Role, CreatedAt: s.CreatedAt, AgentLastSeenAt: s.AgentLastSeenAt}
 	v.AgentOnline = s.AgentLastSeenAt != nil && time.Since(*s.AgentLastSeenAt) < 2*time.Minute
+	v.BlockScope = "server"
+	if s.ServedBy != nil {
+		v.BlockScope = "site"
+	} else if served, err := h.Q.ServedSites(r.Context(), &s.ID); err == nil {
+		for _, x := range served {
+			v.Serves = append(v.Serves, x.Domain)
+		}
+	}
 	if AtLeast(s.Role, RoleAdmin) {
 		v.AgentInfo = s.AgentInfo
 		v.ProtectedIPs = s.ProtectedIps

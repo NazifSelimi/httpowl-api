@@ -57,3 +57,6 @@ WHERE id = ANY(@site_ids::bigint[]) AND id <> @agent_site_id AND served_by IS DI
 -- name: AgentHeartbeatServed :exec
 -- Sites served by this agent share its status and protected IPs (same server).
 UPDATE sites SET agent_last_seen_at = now(), agent_info = $2, protected_ips = $3 WHERE served_by = $1;
+
+-- name: ServedSites :many
+SELECT id, domain FROM sites WHERE served_by = $1 ORDER BY id;

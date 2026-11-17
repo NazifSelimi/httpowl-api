@@ -312,6 +312,35 @@ func (q *Queries) RouteCandidates(ctx context.Context, agentSiteID int64) ([]Rou
 	return items, nil
 }
 
+const servedSites = `-- name: ServedSites :many
+SELECT id, domain FROM sites WHERE served_by = $1 ORDER BY id
+`
+
+type ServedSitesRow struct {
+	ID     int64  `json:"id"`
+	Domain string `json:"domain"`
+}
+
+func (q *Queries) ServedSites(ctx context.Context, servedBy *int64) ([]ServedSitesRow, error) {
+	rows, err := q.db.Query(ctx, servedSites, servedBy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ServedSitesRow
+	for rows.Next() {
+		var i ServedSitesRow
+		if err := rows.Scan(&i.ID, &i.Domain); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const siteByAgentToken = `-- name: SiteByAgentToken :one
 SELECT s.id, s.protected_ips FROM agent_tokens t JOIN sites s ON s.id = t.site_id
 WHERE t.token_hash = $1 AND t.revoked_at IS NULL
